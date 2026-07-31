@@ -3,6 +3,7 @@ import ee
 import folium
 from streamlit_folium import st_folium
 import os
+from google.oauth2 import service_account
 
 # -----------------------------------------------------------------------------
 # 1. CONFIGURACIÓN DE PÁGINA
