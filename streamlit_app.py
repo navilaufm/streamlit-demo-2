@@ -31,29 +31,20 @@ st.markdown("""
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def init_earth_engine():
-    # key_file = os.path.join(os.path.dirname(__file__), "ee-cydata-745adb8aa872.json")
-    # if not os.path.exists(key_file):
-    #     key_file = "ee-cydata-745adb8aa872.json"
+    st.secrets["gee_service_account"]
 
+    # Crear credenciales e inicializar GEE
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info
+    )
+    ee.Initialize(credentials)
+
+    # # # Paso 2: Conectamos con el servidor de Google Earth Engine
     # try:
-    #     credentials = ee.ServiceAccountCredentials(
-    #         'service-ee-cydata@ee-cydata.iam.gserviceaccount.com',
-    #         key_file
-    #     )
-    #     ee.Initialize(credentials, project='ee-cydata')
-    # except Exception:
-    #     try:
-    #         ee.Initialize(project='ee-cydata')
-    #     except Exception:
-    #         ee.Authenticate()
-    #         ee.Initialize(project='ee-cydata')
-
-    # # Paso 2: Conectamos con el servidor de Google Earth Engine
-    try:
-        ee.Initialize()
-    except Exception as e:
-        ee.Authenticate()
-        ee.Initialize(project='ee-cydata') # <- cambiar a su proyecto de GEE debe estar registrado en GEE
+    #     ee.Initialize()
+    # except Exception as e:
+    #     ee.Authenticate()
+    #     ee.Initialize(project='ee-cydata') # <- cambiar a su proyecto de GEE debe estar registrado en GEE
 
     # print("Entorno de Google Earth Engine configurado y autenticado correctamente.")
     #pass
