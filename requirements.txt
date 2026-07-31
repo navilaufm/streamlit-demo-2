@@ -1,4 +1,4 @@
 streamlit
 earth-engine
 folium
-geemapstreamlit_folium
+streamlit_folium
