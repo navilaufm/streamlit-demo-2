@@ -29,28 +29,30 @@ st.markdown("""
 
 # -----------------------------------------------------------------------------
 # 2. AUTENTICACIÓN CON SERVICE ACCOUNT GEE
-# -----------------------------------------------------------------------------
 @st.cache_resource
 def init_earth_engine():
     # 1. Copiamos el diccionario desde los secretos
     service_account_info = dict(st.secrets["gee_service_account"])
 
-    # 2. Limpieza profunda de la clave privada para Streamlit Cloud
+    # 2. Limpieza de la clave privada
     if "private_key" in service_account_info:
         pk = service_account_info["private_key"]
-        
-        # Convierte los '\\n' de texto a saltos de línea reales '\n'
-        pk = pk.replace("\\n", "\n")
-        
-        # Elimina comillas extra accidentales al inicio o al final
-        pk = pk.strip("'\"")
-        
+        pk = pk.replace("\\n", "\n").strip("'\"")
         service_account_info["private_key"] = pk
 
-    # 3. Autenticación
+    # 3. Definimos los scopes requeridos por Earth Engine
+    scopes = [
+        "https://www.googleapis.com/auth/earthengine",
+        "https://www.googleapis.com/auth/devstorage.full_control"
+    ]
+
+    # 4. Generamos las credenciales INCLUYENDO los scopes
     credentials = service_account.Credentials.from_service_account_info(
-        service_account_info
+        service_account_info,
+        scopes=scopes
     )
+
+    # 5. Inicializamos Earth Engine
     ee.Initialize(credentials, project="ee-cydata")
 
 
