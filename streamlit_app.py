@@ -42,7 +42,7 @@ def init_earth_engine():
     )
 
     # 3. Inicializamos Earth Engine pasando las credenciales
-    ee.Initialize(credentials)
+    ee.Initialize(credentials,project="ee-cydata")
 
 
 # Llamada para inicializar al cargar la app
