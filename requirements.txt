@@ -1,4 +1,4 @@
 streamlit
-earth-engine
+earthengine-api
 folium
 streamlit_folium
