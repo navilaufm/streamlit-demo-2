@@ -32,14 +32,22 @@ st.markdown("""
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def init_earth_engine():
+    # 1. Obtenemos el diccionario
     service_account_info = dict(st.secrets["gee_service_account"])
+
+    # 2. Corregimos explícitamente los saltos de línea de la clave privada
+    service_account_info["private_key"] = service_account_info[
+        "private_key"
+    ].replace("\\n", "\n")
+
+    # 3. Creamos credenciales e inicializamos
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info
     )
+
     ee.Initialize(credentials, project="ee-cydata")
 
 
-# Se ejecuta una sola vez por sesión/servidor
 init_earth_engine()
 
 
