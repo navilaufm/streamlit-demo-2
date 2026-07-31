@@ -35,7 +35,7 @@ def init_earth_engine():
     # 1. Copiamos el diccionario desde los secretos
     service_account_info = dict(st.secrets["gee_service_account"])
 
-    # 2. Limpieza de la clave privada
+    # 2. Limpieza de la clave privada (esto es por si no se copian los saldos de linea de la llave privada)
     if "private_key" in service_account_info:
         pk = service_account_info["private_key"]
         pk = pk.replace("\\n", "\n").strip("'\"")
