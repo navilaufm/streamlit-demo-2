@@ -44,9 +44,6 @@ def init_earth_engine():
 init_earth_engine()
 
 
-# Llamada para inicializar al cargar la app
-init_earth_engine()
-
 # -----------------------------------------------------------------------------
 # 3. CARGA DE LA CUENCA 7070870860 Y DEM (HydroSHEDS L7)
 # -----------------------------------------------------------------------------
