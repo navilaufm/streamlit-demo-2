@@ -32,13 +32,20 @@ st.markdown("""
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def init_earth_engine():
-    # 1. Streamlit Community Cloud: llave en Secrets (camino principal)
-        if "gee_service_account" in st.secrets:
-            info = dict(st.secrets["gee_service_account"])
-            cred = ee.ServiceAccountCredentials(
-                info["client_email"], key_data=json.dumps(info))
-            ee.Initialize(cred, project=info.get("project_id", "ee-cydata"))
-            return "secrets"
+    # 1. Copiamos el diccionario de credenciales desde los secretos
+    service_account_info = dict(st.secrets["gee_service_account"])
+
+    # 2. Aseguramos la correcta interpretación de los saltos de línea (\n)
+    if "private_key" in service_account_info:
+        service_account_info["private_key"] = service_account_info[
+            "private_key"
+        ].replace("\\n", "\n")
+
+    # 3. Autenticamos con Google y Earth Engine
+    credentials = service_account.Credentials.from_service_account_info(
+        service_account_info
+    )
+    ee.Initialize(credentials, project="ee-cydata")
 
 
 init_earth_engine()
