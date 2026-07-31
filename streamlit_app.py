@@ -8,7 +8,7 @@ col_title, col_popover = st.columns([5, 1])
 
 with col_title:
     st.title("SAT - CATIE Ver 1")
-    st.header("Vista General del Proyecto")
+    st.header("Visor de Datos de Tiempo Real")
 
 with col_popover:
     st.markdown("<br>", unsafe_allow_html=True)  # Alineación vertical leve
