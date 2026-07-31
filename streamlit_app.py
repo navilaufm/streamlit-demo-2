@@ -31,24 +31,20 @@ st.markdown("""
 # -----------------------------------------------------------------------------
 @st.cache_resource
 def init_earth_engine():
-    st.secrets["gee_service_account"]
+    # 1. Cargamos el diccionario desde los secrets asignándolo a una variable
+    # (¡Sin dejar la llamada suelta en una línea!)
+    service_account_info = dict(st.secrets["gee_service_account"])
 
-    # Crear credenciales e inicializar GEE
+    # 2. Generamos las credenciales desde el diccionario de secretos
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info
     )
+
+    # 3. Inicializamos Earth Engine pasando las credenciales
     ee.Initialize(credentials)
 
-    # # # Paso 2: Conectamos con el servidor de Google Earth Engine
-    # try:
-    #     ee.Initialize()
-    # except Exception as e:
-    #     ee.Authenticate()
-    #     ee.Initialize(project='ee-cydata') # <- cambiar a su proyecto de GEE debe estar registrado en GEE
 
-    # print("Entorno de Google Earth Engine configurado y autenticado correctamente.")
-    #pass
-
+# Llamada para inicializar al cargar la app
 init_earth_engine()
 
 # -----------------------------------------------------------------------------
