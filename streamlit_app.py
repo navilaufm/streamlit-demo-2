@@ -37,7 +37,7 @@ def init_earth_engine():
             info = dict(st.secrets["gee_service_account"])
             cred = ee.ServiceAccountCredentials(
                 info["client_email"], key_data=json.dumps(info))
-            ee.Initialize(cred, project=info.get("project_id", PROYECTO_GEE))
+            ee.Initialize(cred, project=info.get("project_id", "ee-cydata"))
             return "secrets"
 
 
