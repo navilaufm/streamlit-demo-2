@@ -35,14 +35,14 @@ def init_earth_engine():
     # 1. Cargamos el diccionario desde los secrets asignándolo a una variable
     # (¡Sin dejar la llamada suelta en una línea!)
     service_account_info = dict(st.secrets["gee_service_account"])
-
+    print(service_account_info)
     # 2. Generamos las credenciales desde el diccionario de secretos
-    credentials = service_account.Credentials.from_service_account_info(
-        service_account_info
-    )
+    #credentials = service_account.Credentials.from_service_account_info(
+    #    service_account_info
+   # )
 
     # 3. Inicializamos Earth Engine pasando las credenciales
-    ee.Initialize(credentials,project="ee-cydata")
+   # ee.Initialize(credentials,project="ee-cydata")
 
 
 # Llamada para inicializar al cargar la app
