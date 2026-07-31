@@ -27,6 +27,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
 # -----------------------------------------------------------------------------
 # 2. AUTENTICACIÓN CON SERVICE ACCOUNT GEE
 @st.cache_resource
@@ -40,20 +41,23 @@ def init_earth_engine():
         pk = pk.replace("\\n", "\n").strip("'\"")
         service_account_info["private_key"] = pk
 
-    # 3. Definimos los scopes requeridos por Earth Engine
+    # 3. Scopes requeridos
     scopes = [
         "https://www.googleapis.com/auth/earthengine",
         "https://www.googleapis.com/auth/devstorage.full_control"
     ]
 
-    # 4. Generamos las credenciales INCLUYENDO los scopes
+    # 4. Generamos credenciales
     credentials = service_account.Credentials.from_service_account_info(
         service_account_info,
         scopes=scopes
     )
 
-    # 5. Inicializamos Earth Engine
-    ee.Initialize(credentials, project="ee-cydata")
+    # 5. Extraemos el project_id dinámicamente desde el mismo diccionario
+    project_id = service_account_info.get("project_id")
+
+    # 6. Inicializamos con el proyecto dinámico
+    ee.Initialize(credentials, project=project_id)
 
 
 init_earth_engine()
