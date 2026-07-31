@@ -7,7 +7,7 @@ st.set_page_config(page_title="Mockup de Dashboard", layout="wide")
 col_title, col_popover = st.columns([5, 1])
 
 with col_title:
-    st.title("Mi Dashboard de Datos")
+    st.title("SAT - CATIE Ver 1")
     st.header("Vista General del Proyecto")
 
 with col_popover:
