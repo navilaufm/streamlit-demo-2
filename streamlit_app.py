@@ -1,80 +1,252 @@
 import streamlit as st
+import ee
+import folium
+from streamlit_folium import st_folium
+import os
 
-# Configuración de la página (opcional)
-st.set_page_config(page_title="Mockup de Dashboard", layout="wide")
+# -----------------------------------------------------------------------------
+# 1. CONFIGURACIÓN DE PÁGINA
+# -----------------------------------------------------------------------------
+st.set_page_config(
+    page_title="DEM Cuenca 7070870860",
+    page_icon="🏔️",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# 1. Título y Encabezado principal con Popover en la esquina superior derecha
-col_title, col_popover = st.columns([5, 1])
+# Estilo para maximizar la visualización en pantalla
+st.markdown("""
+    <style>
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 0rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-with col_title:
-    st.title("SAT - CATIE Ver 1")
-    st.header("Visor de Datos de Tiempo Real")
+# -----------------------------------------------------------------------------
+# 2. AUTENTICACIÓN CON SERVICE ACCOUNT GEE
+# -----------------------------------------------------------------------------
+@st.cache_resource
+def init_earth_engine():
+    # key_file = os.path.join(os.path.dirname(__file__), "ee-cydata-745adb8aa872.json")
+    # if not os.path.exists(key_file):
+    #     key_file = "ee-cydata-745adb8aa872.json"
 
-with col_popover:
-    st.markdown("<br>", unsafe_allow_html=True)  # Alineación vertical leve
-    with st.popover("⚙️ Ajustes", use_container_width=True):
-        st.markdown("### Configuración Global")
-        st.checkbox("Mostrar valores acumulados", value=True)
-        st.slider("Sensibilidad del Modelo", 0.0, 1.0, 0.5)
-        st.button("Aplicar Cambios")
+    # try:
+    #     credentials = ee.ServiceAccountCredentials(
+    #         'service-ee-cydata@ee-cydata.iam.gserviceaccount.com',
+    #         key_file
+    #     )
+    #     ee.Initialize(credentials, project='ee-cydata')
+    # except Exception:
+    #     try:
+    #         ee.Initialize(project='ee-cydata')
+    #     except Exception:
+    #         ee.Authenticate()
+    #         ee.Initialize(project='ee-cydata')
 
-# 2. Menú Lateral (Sidebar) con opciones
-with st.sidebar:
-    st.title("Navegación")
-    st.header("Filtros")
-    
-    # Menú desplegable (Selectbox)
-    opcion = st.selectbox(
-        "Selecciona el modelo:",
-        ("Modelo Predictivo A", "Modelo Estadístico B", "Análisis de Red C")
+    # # Paso 2: Conectamos con el servidor de Google Earth Engine
+    try:
+        ee.Initialize()
+    except Exception as e:
+        ee.Authenticate()
+        ee.Initialize(project='ee-cydata') # <- cambiar a su proyecto de GEE debe estar registrado en GEE
+
+    # print("Entorno de Google Earth Engine configurado y autenticado correctamente.")
+    #pass
+
+init_earth_engine()
+
+# -----------------------------------------------------------------------------
+# 3. CARGA DE LA CUENCA 7070870860 Y DEM (HydroSHEDS L7)
+# -----------------------------------------------------------------------------
+HYBAS_ID = 7070870860
+
+@st.cache_data
+def get_basin_and_dem(hybas_id):
+    # Filtrar cuenca en HydroSHEDS Nivel 7
+    basins = ee.FeatureCollection("WWF/HydroSHEDS/v1/Basins/hybas_7")
+    cuenca = basins.filter(ee.Filter.eq('HYBAS_ID', hybas_id)).first()
+
+    geom = cuenca.geometry()
+
+    # DEM SRTM 30m recortado a la cuenca
+    dem = ee.Image("USGS/SRTMGL1_003").clip(geom)
+
+    # Centroide y metadatos
+    centroid = geom.centroid().coordinates().getInfo()  # [lon, lat]
+    props = cuenca.getInfo()['properties']
+
+    # Rango de elevación
+    stats = dem.reduceRegion(
+        reducer=ee.Reducer.minMax(),
+        geometry=geom,
+        scale=90,
+        maxPixels=1e9
+    ).getInfo()
+
+    return cuenca, dem, centroid, props, stats
+
+try:
+    cuenca_feat, dem_cuenca, centroid, props, stats = get_basin_and_dem(HYBAS_ID)
+    lat_center, lon_center = centroid[1], centroid[0]
+    min_elev = stats.get('elevation_min', 0)
+    max_elev = stats.get('elevation_max', 3000)
+except Exception as err:
+    st.error(f"Error al cargar la cuenca {HYBAS_ID}: {err}")
+    st.stop()
+
+# -----------------------------------------------------------------------------
+# 4. ENCABEZADO, MÉTRICAS Y SLIDER DE TRANSPARENCIA
+# -----------------------------------------------------------------------------
+st.title("🏔️ Modelo Digital de Elevación (DEM) - Cuenca HydroSHEDS L7")
+
+c1, c2, c3, c4 = st.columns([2, 2, 2, 2])
+c1.metric("HYBAS_ID", f"{HYBAS_ID}")
+c2.metric("Sub-Área", f"{props.get('SUB_AREA', 0):.1f} km²")
+c3.metric("Rango Elevación", f"{min_elev:.0f} a {max_elev:.0f} m")
+
+with c4:
+    dem_opacity = st.slider(
+        "🎛️ Transparencia Capa DEM",
+        min_value=0.0,
+        max_value=1.0,
+        value=0.75,
+        step=0.05,
+        help="Mueve el slider para ajustar la opacidad del DEM"
     )
+
+# -----------------------------------------------------------------------------
+# 5. MAPA INTERACTIVO PANTALLA COMPLETA CON FOLIUM
+# -----------------------------------------------------------------------------
+m = folium.Map(location=[lat_center, lon_center], zoom_start=9, tiles="OpenStreetMap")
+
+def add_ee_layer(folium_map, ee_image_object, vis_params, name, opacity=1.0):
+    map_id_dict = ee.Image(ee_image_object).getMapId(vis_params)
+    folium.TileLayer(
+        tiles=map_id_dict['tile_fetcher'].url_format,
+        attr='Google Earth Engine',
+        name=name,
+        overlay=True,
+        control=True,
+        opacity=opacity
+    ).add_to(folium_map)
+
+# 1. Capa DEM con paleta hipsométrica y transparencia dinámica
+dem_vis = {
+    'min': min_elev,
+    'max': max_elev,
+    'palette': ['006600', '002200', 'fff700', 'ab0000', 'b8b8b8', 'ffffff']
+}
+add_ee_layer(m, dem_cuenca, dem_vis, f'DEM SRTM (Cuenca {HYBAS_ID})', opacity=dem_opacity)
+
+# 2. Límite Vectorial de la Cuenca
+cuenca_fc = ee.FeatureCollection([cuenca_feat])
+add_ee_layer(m, ee.Image().paint(cuenca_fc, 0, 3), {'palette': 'black'}, f'Límite Cuenca {HYBAS_ID}')
+
+# Marcador en el centroide
+folium.Marker(
+    [lat_center, lon_center],
+    popup=f"Centroide Cuenca {HYBAS_ID}",
+    tooltip="Centroide de la Cuenca",
+    icon=folium.Icon(color="red", icon="info-sign")
+).add_to(m)
+
+folium.LayerControl().add_to(m)
+
+# Renderizar en pantalla ancha y alta
+st_folium(m, width="100%", height=720, key="dem_full_map")
+
+
+
+
+
+
+
+
+### app simple abajo #####
+
+
+# import streamlit as st
+
+# # Configuración de la página (opcional)
+# st.set_page_config(page_title="Mockup de Dashboard", layout="wide")
+
+# # 1. Título y Encabezado principal con Popover en la esquina superior derecha
+# col_title, col_popover = st.columns([5, 1])
+
+# with col_title:
+#     st.title("SAT - CATIE Ver 1")
+#     st.header("Visor de Datos de Tiempo Real")
+
+# with col_popover:
+#     st.markdown("<br>", unsafe_allow_html=True)  # Alineación vertical leve
+#     with st.popover("⚙️ Ajustes", use_container_width=True):
+#         st.markdown("### Configuración Global")
+#         st.checkbox("Mostrar valores acumulados", value=True)
+#         st.slider("Sensibilidad del Modelo", 0.0, 1.0, 0.5)
+#         st.button("Aplicar Cambios")
+
+# # 2. Menú Lateral (Sidebar) con opciones
+# with st.sidebar:
+#     st.title("Navegación")
+#     st.header("Filtros")
     
-    st.write(f"Has seleccionado: **{opcion}**")
+#     # Menú desplegable (Selectbox)
+#     opcion = st.selectbox(
+#         "Selecciona el modelo:",
+#         ("Modelo Predictivo A", "Modelo Estadístico B", "Análisis de Red C")
+#     )
     
-    # Un menú simple adicional
-    st.radio("Nivel de detalle:", ["Básico", "Intermedio", "Avanzado"])
+#     st.write(f"Has seleccionado: **{opcion}**")
+    
+#     # Un menú simple adicional
+#     st.radio("Nivel de detalle:", ["Básico", "Intermedio", "Avanzado"])
 
-# 3. Tres secciones en el cuerpo usando Tabs (Pestañas)
-# st.tabs permite organizar el contenido de forma eficiente
-tab1, tab2, tab3 = st.tabs(["📈 Análisis", "📊 Gráficos", "📋 Datos Crudos"])
+# # 3. Tres secciones en el cuerpo usando Tabs (Pestañas)
+# # st.tabs permite organizar el contenido de forma eficiente
+# tab1, tab2, tab3 = st.tabs(["📈 Análisis", "📊 Gráficos", "📋 Datos Crudos"])
 
-with tab1:
-    st.header("Sección de Análisis")
-    st.write("En esta pestaña puedes incluir métricas clave.")
-    # Ejemplo de métrica mencionada en la documentación
-    st.metric(label="Crecimiento Mensual", value="75%", delta="12%")
+# with tab1:
+#     st.header("Sección de Análisis")
+#     st.write("En esta pestaña puedes incluir métricas clave.")
+#     # Ejemplo de métrica mencionada en la documentación
+#     st.metric(label="Crecimiento Mensual", value="75%", delta="12%")
 
-    st.divider()
+#     st.divider()
 
-    # Ejemplo de st.expander (Contenido colapsable / desplegable)
-    with st.expander("ℹ️ Ver metodología e información detallada"):
-        st.write("Esta sección utiliza un `st.expander` para ocultar información secundaria que el usuario puede desplegar cuando la necesite.")
-        st.caption("Fórmula utilizada: Crecimiento = ((Mes Actual - Mes Anterior) / Mes Anterior) * 100")
-
-
-with tab2:
-    st.header("Visualización de Gráficos")
-    st.write("Aquí puedes insertar gráficos interactivos de librerías como Plotly o Altair.")
-    st.info("Espacio reservado para el gráfico del modelo seleccionado.")
-    st.image("https://data.meteo.tech/mm/img/MX.png")
-
-with tab3:
-    st.header("Exploración de Datos")
-    st.write("Muestra tablas o dataframes en esta sección.")
-    # st.dataframe(tu_dataframe) # Comenta esto cuando tengas datos
-
-    with st.popover("📥 Opciones de Descargar Datos"):
-        st.write("Selecciona el formato de exportación:")
-        st.download_button("Descargar CSV", data="id,valor\n1,100\n2,200", file_name="datos.csv", mime="text/csv")
+#     # Ejemplo de st.expander (Contenido colapsable / desplegable)
+#     with st.expander("ℹ️ Ver metodología e información detallada"):
+#         st.write("Esta sección utiliza un `st.expander` para ocultar información secundaria que el usuario puede desplegar cuando la necesite.")
+#         st.caption("Fórmula utilizada: Crecimiento = ((Mes Actual - Mes Anterior) / Mes Anterior) * 100")
 
 
-### Explicación de los componentes:
-# *   **`st.title` y `st.header`:** Se utilizan para dar estructura jerárquica al contenido.
-# *   **`st.sidebar`:** Crea un panel lateral persistente donde puedes colocar widgets de control sin obstruir el área principal.
-# *   **`st.selectbox`:** Funciona como el menú desplegable para que el usuario elija opciones.
-# *   **`st.tabs`:** Es una de las herramientas de diseño más útiles para mockups rápidos, ya que permite separar diferentes vistas dentro de una misma página.
-# *   **`st.metric`:** Ideal para dashboards, muestra valores numéricos destacados con indicadores de cambio (delta).
-# *   **`st.expander`:** Crea un contenedor desplegable/colapsable ideal para ocultar información complementaria o notas metodológicas.
-# *   **`st.popover`:** Crea un botón emergente que al ser presionado despliega una ventana flotante con controles o filtros contextuales.
+# with tab2:
+#     st.header("Visualización de Gráficos")
+#     st.write("Aquí puedes insertar gráficos interactivos de librerías como Plotly o Altair.")
+#     st.info("Espacio reservado para el gráfico del modelo seleccionado.")
+#     st.image("https://data.meteo.tech/mm/img/MX.png")
 
-# Este código permite tener una estructura funcional lista para ser desplegada en la **Streamlit Community Cloud** o localmente.
+# with tab3:
+#     st.header("Exploración de Datos")
+#     st.write("Muestra tablas o dataframes en esta sección.")
+#     # st.dataframe(tu_dataframe) # Comenta esto cuando tengas datos
+
+#     with st.popover("📥 Opciones de Descargar Datos"):
+#         st.write("Selecciona el formato de exportación:")
+#         st.download_button("Descargar CSV", data="id,valor\n1,100\n2,200", file_name="datos.csv", mime="text/csv")
+
+
+# ### Explicación de los componentes:
+# # *   **`st.title` y `st.header`:** Se utilizan para dar estructura jerárquica al contenido.
+# # *   **`st.sidebar`:** Crea un panel lateral persistente donde puedes colocar widgets de control sin obstruir el área principal.
+# # *   **`st.selectbox`:** Funciona como el menú desplegable para que el usuario elija opciones.
+# # *   **`st.tabs`:** Es una de las herramientas de diseño más útiles para mockups rápidos, ya que permite separar diferentes vistas dentro de una misma página.
+# # *   **`st.metric`:** Ideal para dashboards, muestra valores numéricos destacados con indicadores de cambio (delta).
+# # *   **`st.expander`:** Crea un contenedor desplegable/colapsable ideal para ocultar información complementaria o notas metodológicas.
+# # *   **`st.popover`:** Crea un botón emergente que al ser presionado despliega una ventana flotante con controles o filtros contextuales.
+
+# # Este código permite tener una estructura funcional lista para ser desplegada en la **Streamlit Community Cloud** o localmente.
